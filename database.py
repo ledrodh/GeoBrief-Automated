@@ -4,7 +4,7 @@ from datetime import datetime
 DB_NAME = "bot_memory.db"
 
 def init_db():
-    """Cria a tabela no banco se ela não existir"""
+    """Initializes the database table if it doesn't exist."""
     try:
         with sqlite3.connect(DB_NAME) as conn:
             cursor = conn.cursor()
@@ -16,23 +16,23 @@ def init_db():
                 )
             """)
             conn.commit()
-            print("💾 Banco de dados inicializado/verificado.")
+            print("💾 Database initialized/verified.")
     except Exception as e:
-        print(f"❌ Erro ao iniciar banco: {e}")
+        print(f"❌ Error initializing database: {e}")
 
 def is_url_processed(url):
-    """Retorna True se a URL já existe no banco, False se for nova"""
+    """Returns True if URL exists in DB, False otherwise."""
     try:
         with sqlite3.connect(DB_NAME) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT 1 FROM history WHERE url = ?", (url,))
             return cursor.fetchone() is not None
     except Exception as e:
-        print(f"❌ Erro ao verificar URL: {e}")
-        return False # Na dúvida, processa de novo para não perder info
+        print(f"❌ Error checking URL: {e}")
+        return False # Fallback: process again to ensure data integrity
 
 def mark_url_as_processed(url, source):
-    """Salva a URL no banco para não processar novamente"""
+    """Saves URL to DB to prevent re-processing."""
     try:
         with sqlite3.connect(DB_NAME) as conn:
             cursor = conn.cursor()
@@ -43,15 +43,15 @@ def mark_url_as_processed(url, source):
             )
             conn.commit()
     except Exception as e:
-        print(f"❌ Erro ao salvar URL: {e}")
+        print(f"❌ Error saving URL: {e}")
 
-# Teste rápido se rodar o arquivo direto
+# Quick test if run directly
 if __name__ == "__main__":
     init_db()
-    # Teste
-    test_url = "https://exemplo.com/noticia-teste"
+    # Test case
+    test_url = "https://example.com/test-news"
     if not is_url_processed(test_url):
-        print("Link novo! Salvando...")
-        mark_url_as_processed(test_url, "Teste")
+        print("New link detected! Saving...")
+        mark_url_as_processed(test_url, "Test")
     else:
-        print("Link já processado.")
+        print("Link already processed.")

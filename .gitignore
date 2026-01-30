@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+.env
+*.session
+*.session-journal
+*.db
+*.log
+temp_*.json
+global_news_dump_*.json
+telegram_dump_*.json

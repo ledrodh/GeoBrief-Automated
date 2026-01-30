@@ -5,73 +5,30 @@ import random
 import json
 from datetime import datetime
 import os
+from urllib.parse import urlparse
 
-# --- CONFIGURAÇÃO DOS ALVOS (TARGETS) ---
+# --- TARGET CONFIGURATION  ---
+# These are generic, high-traffic global sites to demonstrate capability.
 TARGETS = [
-    # --- Mídia Original ---
-    {
-        "name": "Reuters",
-        "url": "https://www.reuters.com/world/",
-        "link_keywords": ["/world/"]
-    },
-    {
-        "name": "The Independent",
-        "url": "https://www.independent.co.uk/news/world?CMP=ILC-refresh",
-        "link_keywords": ["/news/world/"]
-    },
-    {
-        "name": "The National UAE",
-        "url": "https://www.thenationalnews.com/news/uae/",
-        "link_keywords": ["/news/uae/"]
-    },
-    
-    # --- Novos Alvos Adicionados ---
-    {
-        "name": "Defence Blog",
-        "url": "https://defence-blog.com/",
-        # Defence blog não usa categorias na URL, mas notícias sempre têm hifens (slugs)
-        "link_keywords": ["-"] 
-    },
     {
         "name": "BBC World",
         "url": "https://www.bbc.com/news/world",
         "link_keywords": ["/news/world"]
     },
     {
-        "name": "Noticia Brasil (Mundo)",
-        "url": "https://noticiabrasil.net.br/mundo/",
-        "link_keywords": ["/mundo/"]
-    },
-    {
-        "name": "Brookings",
-        "url": "https://www.brookings.edu/",
-        "link_keywords": ["/articles/", "/research/", "/blog/"]
-    },
-    {
-        "name": "CFR (Council on Foreign Relations)",
-        "url": "https://www.cfr.org/regions/global-commons",
-        "link_keywords": [
-            "topics/defense-and-security", 
-            "diplomacy-and-international-institutions", 
-            "topics/economics"
-        ]
-    },
-    {
-        "name": "CSIS (Center for Strategic and International Studies)",
-        "url": "https://www.csis.org/topics/technology",
-        "link_keywords": [
-            "topics/geopolitics-and-international-security", 
-            "topics/technology"
-        ]
+        "name": "Al Jazeera",
+        "url": "https://www.aljazeera.com/news/",
+        "link_keywords": ["/news/20"] # Al Jazeera usually has dates in URLs
     }
 ]
 
-MIN_ARTICLE_LENGTH = 250  # Mínimo de caracteres para salvar
+MIN_ARTICLE_LENGTH = 250  # Minimum characters to be considered valid
+MAX_ARTICLES_PER_SITE = 5 # Limit for demo purposes
 
 def save_to_json(data):
-    """Salva todos os dados em um único arquivo JSON do dia"""
+    """Saves raw data to a JSON file (useful for debugging)."""
     if not data:
-        print("⚠️ Nenhum dado coletado.")
+        print("⚠️ No data collected.")
         return
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
@@ -80,13 +37,13 @@ def save_to_json(data):
     try:
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
-        print(f"\n✅ [ARQUIVO SALVO] {os.path.abspath(filename)}")
-        print(f"📊 Total de notícias: {len(data)}")
+        print(f"\n✅ [FILE SAVED] {os.path.abspath(filename)}")
+        print(f"📊 Total items: {len(data)}")
     except Exception as e:
-        print(f"❌ Erro ao salvar JSON: {e}")
+        print(f"❌ Error saving JSON: {e}")
 
 def run_scraper_pipeline():
-    print("🚀 Iniciando Motor de Scraping Multi-Site Expandido...")
+    print("🚀 Starting Multi-Site Web Scraper...")
     
     all_news_results = []
     
@@ -94,7 +51,7 @@ def run_scraper_pipeline():
         "--disable-blink-features=AutomationControlled",
         "--start-maximized", 
         "--no-sandbox",
-        "--headless=new" # Modo Stealth Silencioso
+        "--headless=new" # Stealth Mode
     ]
 
     with sync_playwright() as p:
@@ -105,31 +62,31 @@ def run_scraper_pipeline():
             viewport={"width": 1366, "height": 768}
         )
         
+        # Anti-detect script
         context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         
         page = context.new_page()
 
-        # --- LOOP PELOS SITES ---
+        # --- SITE LOOP ---
         for site in TARGETS:
             print(f"\n" + "="*50)
-            print(f"🌍 FONTE: {site['name']}")
+            print(f"🌍 SOURCE: {site['name']}")
             print(f"🔗 URL: {site['url']}")
             print("="*50)
 
             try:
                 page.goto(site['url'], timeout=60000)
-                time.sleep(5) # Espera um pouco mais para sites pesados
+                time.sleep(5) 
 
-                # 1. SCROLL GENÉRICO
-                print("🔄 Carregando feed...")
+                # 1. GENERIC SCROLL
+                print("🔄 Loading feed...")
                 for _ in range(3): 
                     page.keyboard.press("End")
                     time.sleep(2)
                 
-                # 2. COLETA DE LINKS INTELIGENTE (Suporta Multi-Keywords)
-                print(f"🎣 Buscando links compatíveis...")
+                # 2. SMART LINK HARVESTING
+                print(f"🎣 Harvesting links...")
                 
-                # Pega todos os links da página
                 links_elements = page.locator("a").all()
                 
                 unique_urls = set()
@@ -141,27 +98,24 @@ def run_scraper_pipeline():
                         text = link.inner_text().strip()
                         
                         if href and len(text) > 10:
-                            # Monta URL absoluta
+                            # Construct absolute URL
                             if href.startswith('/'):
-                                # Pega o domínio base corretamente
-                                from urllib.parse import urlparse
                                 parsed_uri = urlparse(site['url'])
                                 base_domain = '{uri.scheme}://{uri.netloc}'.format(uri=parsed_uri)
                                 full_url = base_domain + href
                             elif href.startswith('http'):
                                 full_url = href
                             else:
-                                continue # Ignora links javascript: ou mailto:
+                                continue 
 
-                            # --- FILTRO MULTI-KEYWORD ---
-                            # Verifica se ALGUMA das palavras chaves está na URL
+                            # --- KEYWORD FILTER ---
                             match_keyword = False
                             for keyword in site['link_keywords']:
                                 if keyword in full_url:
                                     match_keyword = True
                                     break
                             
-                            # Filtros adicionais de exclusão (lixo comum)
+                            # Exclusion filters
                             exclusion_terms = ["/video/", "/live/", "/author/", "/category/", "contact", "about"]
                             is_excluded = any(term in full_url for term in exclusion_terms)
 
@@ -175,17 +129,17 @@ def run_scraper_pipeline():
                     except:
                         continue
 
-                print(f"📋 Encontrados {len(articles_to_scrape)} artigos potenciais.")
+                print(f"📋 Found {len(articles_to_scrape)} potential articles.")
 
-                # 3. EXTRAÇÃO DE CONTEÚDO (Limitado a 3 por site para teste rápido - REMOVA O SLICE EM PRODUÇÃO)
-                # Dica: Para coletar tudo, mude de 'articles_to_scrape[:3]' para 'articles_to_scrape'
-                for index, item in enumerate(articles_to_scrape[:3]): 
-                    print(f"   [{index+1}] Lendo: {item['headline'][:40]}...")
+                # 3. CONTENT EXTRACTION
+                # Limited by MAX_ARTICLES_PER_SITE for the public demo
+                for index, item in enumerate(articles_to_scrape[:MAX_ARTICLES_PER_SITE]): 
+                    print(f"   [{index+1}] Reading: {item['headline'][:40]}...")
                     
                     try:
                         page.goto(item['url'], timeout=45000)
                         
-                        # Tenta remover popups comuns
+                        # Close popups
                         try:
                             page.keyboard.press("Escape")
                         except:
@@ -193,18 +147,15 @@ def run_scraper_pipeline():
 
                         soup = BeautifulSoup(page.content(), 'html.parser')
                         
-                        # Extração Genérica de Título
+                        # Generic Title Extraction
                         title_tag = soup.find('h1')
                         title = title_tag.get_text().strip() if title_tag else item['headline']
                         
-                        # Extração Inteligente de Texto
-                        # Alguns sites usam 'article', outros divs específicas. 
-                        # Vamos focar em <p> que tenham texto substancial.
+                        # Smart Text Extraction
                         paragraphs = soup.find_all('p')
                         text_content = []
                         for p in paragraphs:
                             txt = p.get_text().strip()
-                            # Filtra parágrafos de menu ou rodapé (< 60 chars)
                             if len(txt) > 60: text_content.append(txt)
                         
                         full_text = "\n\n".join(text_content)
@@ -217,17 +168,17 @@ def run_scraper_pipeline():
                                 "scraped_at": datetime.now().isoformat(),
                                 "content": full_text
                             })
-                            print(f"      ✅ Sucesso ({len(full_text)} caracteres)")
+                            print(f"      ✅ Success ({len(full_text)} chars)")
                         else:
-                            print(f"      ⚠️ Conteúdo curto ou protegido.")
+                            print(f"      ⚠️ Content too short or protected.")
 
                     except Exception as e:
-                        print(f"      ❌ Erro: {e}")
+                        print(f"      ❌ Error: {e}")
                     
                     time.sleep(random.uniform(2, 5))
 
             except Exception as e:
-                print(f"❌ Erro crítico em {site['name']}: {e}")
+                print(f"❌ Critical error in {site['name']}: {e}")
 
         browser.close()
         return all_news_results

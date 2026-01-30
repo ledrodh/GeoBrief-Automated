@@ -1,60 +1,65 @@
 import json
 import asyncio
 from telethon import TelegramClient
-from datetime import datetime, timezone
+from datetime import datetime
 import os
+from dotenv import load_dotenv
 
-# --- SUAS CREDENCIAIS AQUI ---
-API_ID = 38822425  
-API_HASH = 'a34bb33f0841ca1ba7ef316132e50c58' 
+# Load credentials from .env
+load_dotenv()
 
-# --- CANAIS ALVO ---
-# Você pode colocar o @nome_do_canal ou o link t.me
+# CRITICAL: Never hardcode credentials in public code.
+# Ensure API_ID and API_HASH are in your .env file.
+API_ID = os.getenv("API_ID")
+API_HASH = os.getenv("API_HASH")
+
+# --- TARGET CHANNELS (DEMO) ---
+# Generic, high-profile sources for the public portfolio.
 TARGET_CHANNELS = [
-    'armillary',    # Exemplo: Geopolítica
-    'belllingcat',         # Exemplo: Investigação
-    'TheEconomist',        # Exemplo: Notícias
-    'geopolitics_prime',
-    'canalartedaguerra',
-    'GeopoliticaMundialVerdadeiro',
-    'SputnikBrasil',
-    'GeneralMCNews'
-                                # Canal oficial da Reuters (se houver)
+    'TheEconomist',    # Global Economics/Politics
+    'nytimes',         # The New York Times
+    'bloomberg',       # Markets & Geopolitics
+    'WSJ'              # Wall Street Journal
 ]
 
-# Configuração
-LIMIT_MESSAGES = 10  # Quantas mensagens pegar por canal
-MIN_CHARS = 100      # Ignorar mensagens curtas (tipo "bom dia")
+# Configuration
+LIMIT_MESSAGES = 10  # How many messages to fetch per channel
+MIN_CHARS = 100      # Ignore short messages
 
 async def get_telegram_news():
-    print("🚀 Iniciando Coleta do Telegram...")
+    print("🚀 Starting Telegram Scraper...")
+
+    if not API_ID or not API_HASH:
+        print("❌ Error: API_ID or API_HASH not found in .env file.")
+        return []
     
-    # Cria a sessão (cria um arquivo .session na pasta para salvar o login)
-    client = TelegramClient('minha_sessao_telegram', API_ID, API_HASH)
+    # Create the session (creates a .session file locally)
+    # Note: Ensure the session name matches what you uploaded or Gitignored
+    client = TelegramClient('user_session', int(API_ID), API_HASH)
     
     news_data = []
     
     await client.start()
-    print("✅ Login efetuado com sucesso!")
+    print("✅ Login successful!")
 
     for channel in TARGET_CHANNELS:
-        print(f"\n📡 Lendo canal: {channel}...")
+        print(f"\n📡 Scanning channel: {channel}...")
         
         try:
-            # Pega a entidade do canal (resolve o @nome)
+            # Get channel entity (resolves @name)
             entity = await client.get_entity(channel)
             
-            # Itera sobre as últimas mensagens
+            # Iterate over messages
             async for message in client.iter_messages(entity, limit=LIMIT_MESSAGES):
                 
                 if message.text and len(message.text) > MIN_CHARS:
-                    # Formata a data
+                    # Format date
                     date_str = message.date.isoformat()
                     
-                    # Cria um título fake (primeiras 10 palavras)
+                    # Create a fake title (first 10 words)
                     fake_title = " ".join(message.text.split()[:10]) + "..."
                     
-                    # Cria o link direto para a mensagem
+                    # Direct link to message
                     msg_link = f"https://t.me/{channel}/{message.id}"
 
                     news_data.append({
@@ -65,10 +70,10 @@ async def get_telegram_news():
                         "content": message.text
                     })
             
-            print(f"   ✅ Coletados {len(news_data)} posts válidos até agora.")
+            print(f"   ✅ Collected {len(news_data)} valid posts so far.")
 
         except Exception as e:
-            print(f"   ❌ Erro ao ler canal {channel}: {e}")
+            print(f"   ❌ Error scanning {channel}: {e}")
 
     await client.disconnect()
     return news_data
@@ -80,10 +85,10 @@ def save_to_json(data):
     
     with open(filename, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
-    print(f"\n💾 Arquivo salvo: {filename}")
+    print(f"\n💾 File saved: {filename}")
 
-# --- EXECUÇÃO ---
+# --- EXECUTION ---
 if __name__ == "__main__":
-    # O Python precisa de um loop para rodar funções async
+    # Python requires a loop to run async functions
     data = asyncio.run(get_telegram_news())
     save_to_json(data)

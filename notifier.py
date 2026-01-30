@@ -3,26 +3,26 @@ import os
 import textwrap
 from dotenv import load_dotenv
 
-# Carrega configurações
+# Load configuration
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 def send_telegram_report(message_text):
-    """Envia o relatório para o Telegram, dividindo em partes se necessário."""
+    """Sends the report to Telegram, splitting it into chunks if necessary."""
     
     if not message_text:
-        print("⚠️ Notifier: Texto vazio, nada enviado.")
+        print("⚠️ Notifier: Empty text, nothing to send.")
         return
 
     if not TOKEN or not CHAT_ID:
-        print("❌ Notifier: TOKEN ou CHAT_ID não configurados no .env")
+        print("❌ Notifier: TOKEN or CHAT_ID not found in .env")
         return
 
-    print("📨 Enviando relatório para o Telegram...")
+    print("📨 Sending report to Telegram...")
 
-    # O Telegram tem limite de 4096 caracteres por mensagem.
-    # Vamos dividir o texto em blocos de 4000 para garantir.
+    # Telegram has a hard limit of 4096 chars per message.
+    # Splitting into 4000-char chunks to be safe.
     chunks = textwrap.wrap(message_text, width=4000, replace_whitespace=False)
 
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
@@ -31,26 +31,23 @@ def send_telegram_report(message_text):
         payload = {
             "chat_id": CHAT_ID,
             "text": chunk,
-            # 'Markdown' é chato com caracteres especiais. 
-            # Se der erro, remova a linha abaixo para enviar como texto puro.
-            "parse_mode": "Markdown" 
+            "parse_mode": "Markdown" # Tries to format bold/titles
         }
         
         try:
             response = requests.post(url, json=payload)
-            response.raise_for_status() # Lança erro se não for 200 OK
-            print(f"   ✅ Parte {i+1}/{len(chunks)} enviada.")
+            response.raise_for_status() 
+            print(f"   ✅ Part {i+1}/{len(chunks)} sent.")
             
-        except requests.exceptions.HTTPError as e:
-            # Se der erro de Markdown (comum se tiver * ou _ no lugar errado),
-            # tenta reenviar como texto puro (fallback de segurança)
-            print(f"   ⚠️ Erro de formatação (Markdown). Reenviando como texto puro...")
+        except requests.exceptions.HTTPError:
+            # Fallback: If Markdown fails (due to special chars), resend as plain text
+            print(f"   ⚠️ Formatting error (Markdown). Resending as plain text...")
             payload.pop("parse_mode") 
             requests.post(url, json=payload)
             
         except Exception as e:
-            print(f"   ❌ Falha ao enviar parte {i+1}: {e}")
+            print(f"   ❌ Failed to send part {i+1}: {e}")
 
 if __name__ == "__main__":
-    # Teste simples
-    send_telegram_report("🤖 Teste do Sistema The Eyes: Mensagem de verificação.")
+    # Simple connection test
+    send_telegram_report("🤖 GeoBrief System Test: Verification message.")
